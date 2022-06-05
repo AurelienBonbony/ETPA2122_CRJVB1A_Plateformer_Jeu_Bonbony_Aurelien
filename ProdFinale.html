@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Mon 1er jeu Phaser</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <script type="text/javascript">
+
+        class Acceuil extends Phaser.Scene {
+            constructor() {
+                super("Acceuil")
+            }
+
+            preload() {
+
+                this.load.image("Title_Screen", "Assets/écran de lancement.png"); // Charger l'image d'acceuil
+
+            }
+
+            create() {
+
+
+                this.imageAcceuil = this.physics.add.staticGroup();
+                this.imageAcceuil.create(955, 570, 'Title_Screen').setScale(0.8); // Emplacement de l'image d'acceuil
+
+                this.cursors = this.input.keyboard.createCursorKeys();
+            }
+
+            update() {
+
+
+                if (this.cursors.space.isDown) { // En appyant sur la touche "espace"
+                    this.scene.start("MAP"); // On passe de la scene de l'image d'acceuil à la scene "Plaine"
+                }
+
+
+            }
+
+        }
+
+        class MAP extends Phaser.Scene {
+            constructor() {
+                super("MAP")
+            }
+
+            preload() {
+
+
+
+
+
+                this.load.tilemapTiledJSON('MAP', 'mapFinale.json');
+                this.load.image('créature', 'assets/créature niv3.png');
+                this.load.image('planteOrange', 'assets/plante.png');
+                this.load.image('planteVerte', 'assets/planteVerte.png');
+                this.load.image('buche', 'assets/buche_front.png');
+                this.load.image('cristaux', 'assets/cristauxCharge.png');
+                this.load.image('SpriteDialoguePlanteVerte_', 'assets/SpriteDialoguePlanteVerte_.png');
+                this.load.image('SpriteDialoguePlanteOrange_', 'assets/SpriteDialoguePlanteOrange_.png');
+                this.load.image('Tuto', 'assets/Tuto.png');
+                this.load.image('Fin', 'assets/Fin.png');
+
+                this.load.image('sol', 'assets/test.png');
+                this.load.image('spritesheet64x64', 'assets/spritesheet64x64.png');
+
+
+
+
+
+            }
+
+
+            create() {
+
+                this.gameOver = false;
+                this.cursors;
+                this.animationL = 'left';
+                this.animationR = 'right';
+                this.animationU = 'up';
+                this.animationD = 'down';
+                this.accroupi = false;
+                this.dashEffect = this.physics.add.group({ allowGravity: false, collideWorldBounds: true });
+                this.chrono = 120
+                this.dash = false;
+                this.doublejump = false
+                this.collectplante = false
+                this.collectplantejump = false
+
+                ///////////////////IMPORTATION MAP////////////////////
+
+                this.carteNiveau = this.add.tilemap("MAP");
+
+                const tilesetFond = this.carteNiveau.addTilesetImage(
+                    "spritesheet64x64",
+                    "spritesheet64x64"
+                );
+                const tileset2ndPlan = this.carteNiveau.addTilesetImage(
+                    "spritesheet64x64",
+                    "spritesheet64x64"
+                );
+                const tilesetSol = this.carteNiveau.addTilesetImage(
+                    "test",
+                    "sol"
+                );
+                const tilesetAssets = this.carteNiveau.addTilesetImage(
+                    "spritesheet64x64",
+                    "spritesheet64x64"
+                );
+                const tilesetAssetsSol = this.carteNiveau.addTilesetImage(
+                    "spritesheet64x64",
+                    "spritesheet64x64"
+                );
+                const tilesetPlatform = this.carteNiveau.addTilesetImage(
+                    "spritesheet64x64",
+                    "spritesheet64x64"
+                );
+
+
+
+
+                this.background = this.carteNiveau.createLayer(
+                    "background",
+                    tilesetFond
+                );
+                this.secondPlan = this.carteNiveau.createLayer(
+                    "2nd plan",
+                    tileset2ndPlan
+                );
+                this.sol = this.carteNiveau.createLayer(
+                    "sol",
+                    tilesetSol
+                );
+                this.assets = this.carteNiveau.createLayer(
+                    "assets",
+                    tilesetAssets
+                );
+                this.assetsSol = this.carteNiveau.createLayer(
+                    "assetsSol",
+                    tilesetAssetsSol
+                );
+                this.plateformes = this.carteNiveau.createLayer(
+                    "plateformes",
+                    tilesetPlatform
+                );
+
+                this.buche = this.carteNiveau.getObjectLayer("buche");
+                this.cristaux = this.carteNiveau.getObjectLayer("cristaux");
+                this.saut = this.carteNiveau.getObjectLayer("saut");
+                this.charge = this.carteNiveau.getObjectLayer("charge");
+                this.ennemis = this.carteNiveau.getObjectLayer("ennemis");
+
+
+
+
+
+                ////////////////BOO////////////////
+
+
+                this.player = this.physics.add.sprite(0, 0, 'créature');
+                this.player.scale = 0.12
+                this.player.setCollideWorldBounds(true);
+                this.physics.add.collider(this.player);
+                this.player.body.setSize(800, 800)
+                this.player.body.setOffset(100, 22)
+                this.player.setDepth(1);
+                this.player.setMaxVelocity(250, 900);
+
+                this.player.speed = 250;
+                this.dir = "left";
+                this.isCharging = false;
+                this.isFoncing = false;
+                this.valueCharge = 0;
+                this.foncingDuration = 3000;
+
+
+                ////////////////MECHANT////////////////
+
+                this.monster = this.physics.add.sprite(764, 282);
+                this.monster.scale = 0.2
+                this.monster.setCollideWorldBounds(true);
+                this.monster.body.setSize(400, 800)
+                this.monster.body.setOffset(100, 22)
+                this.physics.add.collider(this.monster, this.sol);
+
+
+                this.SpriteDialoguePlanteVerte = this.physics.add.sprite(1664, 318, 'SpriteDialoguePlanteVerte_').setScale(0.2)
+                this.SpriteDialoguePlanteVerte.body.allowGravity = false
+                this.SpriteDialoguePlanteVerte.visible = false
+
+                this.SpriteDialoguePlanteOrange = this.physics.add.sprite(1872, 1854, 'SpriteDialoguePlanteOrange_').setScale(0.2)
+                this.SpriteDialoguePlanteOrange.body.allowGravity = false
+                this.SpriteDialoguePlanteOrange.visible = false
+
+                this.Tuto = this.physics.add.sprite(300, 300, 'Tuto').setScale(0.2)
+                this.Tuto.body.allowGravity = false
+                this.Tuto.visible = false
+
+                this.Fin = this.physics.add.sprite(3700, 1250, 'Fin').setScale(0.2)
+                this.Fin.body.allowGravity = false
+                this.Fin.visible = false
+
+
+
+
+
+
+
+
+
+
+
+
+                this.assets.setDepth(2);
+                this.assetsSol.setDepth(2);
+                this.sol.setDepth(2);
+
+
+
+
+                this.plante = this.physics.add.sprite(1856, 1920, 'planteOrange');
+                this.plante.body.allowGravity = false
+                this.plante.scale = 0.3
+                this.physics.add.overlap(this.plante, this.player, this.DashPossible, null, this)
+
+                this.plantejump = this.physics.add.sprite(1664, 415, 'planteVerte');
+                this.plantejump.body.allowGravity = false
+                this.plantejump.scale = 0.3
+                this.physics.add.overlap(this.plantejump, this.player, this.DoublejumpPossible, null, this)
+
+
+
+                ///////////////////COLLISION////////////////////
+
+                this.sol.setCollisionByProperty({ estSolide: true });
+                this.plateformes.setCollisionByProperty({ estSolide: true });
+                this.physics.add.collider(this.player, this.sol);
+                this.physics.add.collider(this.plante, this.sol);
+                this.physics.add.collider(this.player, this.plateformes);
+
+
+                this.buches = this.physics.add.group({});
+                this.buche.objects.forEach(object => {
+                    const buche = this.buches.create(object.x, object.y, "buche").setPushable(false).scale = 2.5;
+
+                })
+                this.physics.add.collider(this.buches, this.sol);
+                this.bucheCollider = this.physics.add.collider(this.player, this.buches);
+
+
+
+
+
+
+
+                // this.collider = this.buche.setCollisionByProperty({ estSolide: true });
+                // this.physics.add.collider(this.player, this.collider);
+
+                ///////////////////CAMERA////////////////////
+
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.physics.world.setBounds(0, 0, 25600, 25600);
+                this.cameras.main.setBounds(0, 0, 25600, 25600);
+                this.cameras.main.zoom = 1.5;                  //Camera
+                this.cameras.main.startFollow(this.player);
+
+
+
+
+
+
+
+
+            }
+
+            DashPossible(player, plante, cristaux) {
+                this.collectplante = true
+                this.plante.disableBody(true, true);
+
+
+                this.cristauxS = this.physics.add.group({});
+                this.cristaux.objects.forEach(object => {
+                    const cristaux = this.cristauxS.create(object.x, object.y, "cristaux").setPushable(false);
+
+                })
+                this.physics.add.collider(this.cristauxS, this.sol);
+                this.cristauxCollider = this.physics.add.collider(this.player, this.cristauxS);
+
+
+            }
+            DoublejumpPossible(player, plantejump) {
+                this.collectplantejump = true
+                this.plantejump.disableBody(true, true)
+            }
+
+            update(time, delta) {
+
+
+                if (this.player.x >= 1664 && this.player.x <= 1800) {
+
+                    this.SpriteDialoguePlanteVerte.visible = true
+                }
+                else {
+
+                    this.SpriteDialoguePlanteVerte.visible = false
+                }
+
+
+                if (this.player.x >= 1856 && this.player.x <= 2000) {
+
+                    this.SpriteDialoguePlanteOrange.visible = true
+                }
+                else {
+
+                    this.SpriteDialoguePlanteOrange.visible = false
+                }
+
+                if (this.player.x >= 0 && this.player.x <= 500) {
+
+                    this.Tuto.visible = true
+                }
+                else {
+
+                    this.Tuto.visible = false
+                }
+
+                if (this.player.x >= 3650 && this.player.x <= 3800) {
+
+                    this.Fin.visible = true
+                }
+                else {
+
+                    this.Fin.visible = false
+                }
+
+
+                ////////////////MONSTER////////////////
+
+                if (this.monster.x >= 1000) {
+                    this.monster.setVelocityX(-1000)
+                    this.monster.anims.play("monster left", true)
+                }
+                else if (this.monster.x <= 450) {
+                    this.monster.setVelocityX(1000)
+                    this.monster.anims.play("monster right", true)
+                }
+
+
+
+                if (this.collectplantejump == true) {
+                    this.doublejump = true
+                }
+                if (this.collectplante == true) {
+                    this.dash = true
+                }
+                // console.log(this.accroupi)
+
+
+                this.player.body.setSize(700, 600)
+                this.player.body.setOffset(200, 220)
+
+
+
+                var dashButton = this.cursors.shift.isDown
+                var dashButtonUp = this.cursors.shift.isUp
+
+                if (this.isFoncing == false) {
+                    if (this.cursors.left.isDown) {//si la touche gauche est appuyée
+                        this.dir = "left";
+                        this.player.setFlipX(true);
+                        this.player.setVelocityX(- this.player.speed);//alors vitesse négative en X
+                        //this.player.anims.play('left', true);//et animation => gauche
+                    }
+                    else if (this.cursors.right.isDown) {//si la touche droite est appuyée
+                        this.dir = "right";
+                        this.player.setFlipX(false);
+                        this.player.setVelocityX(this.player.speed);//alors vitesse positive en X
+                        // this.player.anims.play('right', true);//et animation => droite
+                    }
+                    else { // sinon
+                        this.player.setVelocityX(0); //vitesse nulle
+                        //this.player.anims.play('turn');//animation fait face caméra
+                    }
+
+                    if (this.cursors.up.isDown && this.player.body.onFloor()) {//si la touche gauche est appuyée
+                        this.player.setVelocityY(-400);//alors vitesse négative en X
+                        //this.player.anims.play('up', true);//et animation => gauche
+                    }
+                }
+
+
+                ///////////////////CHARGE////////////////////
+                if (this.cursors.shift.isDown && this.dash == true) {
+                    if (this.valueCharge < 250) {
+                        this.valueCharge += 1;
+                        //this.cameras.main.zoom += 0.005; 
+                    }
+
+                    if (this.player.speed > 100) {
+                        this.player.speed -= 1;
+                    }
+
+                    this.isCharging = true;
+                    if (this.isCharging == true) {
+                        this.cristauxCollider.active = false;
+                        this.cristaux.NotVisible = true
+
+
+                    } else {
+                        this.cristauxCollider.active = true;
+                    }
+
+
+
+                } else {
+                    //this.cameras.main.zoom = 2.4; 
+                    this.player.speed = 500;
+                    this.valueCharge = 0;
+                }
+
+
+                this.cursors.shift.on('up', function (event) {
+                    if (this.isCharging) {
+                        if (this.dir == "left") {
+                            this.player.setVelocityX(-(this.valueCharge * 2 + this.player.speed));
+                        } else {
+                            this.player.setVelocityX((this.valueCharge * 2 + this.player.speed));
+                        }
+                        this.isFoncing = true;
+                        this.isCharging = false;
+
+                        if (this.isFoncing == true) {
+                            this.accroupi = false;
+                            this.cristauxCollider.active = false;
+
+
+                        } else {
+                            this.cristauxCollider.active = true;
+                        }
+
+
+
+
+                        setTimeout(() => {
+                            this.isFoncing = false;
+                            this.foncingDuration = 10000;
+                        }, 400);
+
+                    }
+                }, this);
+
+                ///////////////////EFFET CHARGE////////////////////
+                if (this.isFoncing) {
+                    this.foncingDuration -= 1;
+                    if (this.foncingDuration % 10 == 0) {
+                        const ombre = this.dashEffect.create(this.player.x, this.player.y, 'créature').setPushable(false).setDepth(0).setScale(0.12);
+                        if (this.dir == "left") {
+                            ombre.setFlipX(true);
+                        }
+                    }
+                }
+
+                this.dashEffect.children.each(function (ombre) {
+
+                    ombre.alpha -= 0.02;
+                    if (ombre.alpha <= 0) {
+                        ombre.destroy();
+                    }
+
+                }, this);
+
+
+
+
+
+                ///////////////////MECANIQUE: ACRROUPI////////////////////
+
+                if (this.cursors.down.isDown) {
+
+                    this.accroupi = true;
+                }
+
+
+                if (this.accroupi == true) {
+                    this.bucheCollider.active = false;
+                    this.player.body.setSize(800, 500);
+                    this.player.body.setOffset(100, 310);
+                    // this.collider.setCollisionByProperty({estSolide: true}, false)
+
+                } else {
+                    this.bucheCollider.active = true;
+                }
+
+
+                if (this.cursors.down.isUp) {
+                    this.accroupi = false;
+
+
+                    // this.collider.setCollisionByProperty({estSolide: true}, true)
+                }
+
+
+                if (this.player.body.onFloor() && this.doublejump == true) {
+                    if (this.collectplantejump == true) {
+                        this.nbSaut = 2;
+                    } else {
+                        this.nbSaut = 1;
+                    }
+                }
+
+                if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && this.nbSaut > 0) {
+                    //si touche haut appuyée ET que le perso touche le sol
+                    this.player.setVelocityY(-500);
+                    this.nbSaut = this.nbSaut - 1;
+                    this.jump = true;
+                }
+
+            }
+
+            mort() {
+
+            }
+        }
+
+
+
+
+
+        var config = {
+            type: Phaser.CANVAS,
+            width: 1920, height: 1080,
+            //width: 960, height: 540,           //config   //config de la fenetre et du niveau en generale   
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 900 },
+                    debug: false
+                }
+            },
+            fps: {
+                target: 120,
+                forceSetTimeOut: true
+            },
+            input: { gamepad: true },
+            scene: [Acceuil, MAP]
+        };
+        new Phaser.Game(config);
+
+    </script>
+</body>
+
+</html>
