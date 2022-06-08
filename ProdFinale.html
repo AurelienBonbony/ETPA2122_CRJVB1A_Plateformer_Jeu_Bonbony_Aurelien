@@ -22,7 +22,7 @@
 
             preload() {
 
-                this.load.image("Title_Screen", "Assets/écran de lancement.png"); // Charger l'image d'acceuil
+                this.load.image("Title_Screen", "assets/écran de lancement.png"); // Charger l'image d'acceuil
 
             }
 
@@ -47,6 +47,8 @@
 
         }
 
+
+
         class MAP extends Phaser.Scene {
             constructor() {
                 super("MAP")
@@ -64,10 +66,18 @@
                 this.load.image('planteVerte', 'assets/planteVerte.png');
                 this.load.image('buche', 'assets/buche_front.png');
                 this.load.image('cristaux', 'assets/cristauxCharge.png');
+                this.load.image('méchant', 'assets/méchant.png');
                 this.load.image('SpriteDialoguePlanteVerte_', 'assets/SpriteDialoguePlanteVerte_.png');
                 this.load.image('SpriteDialoguePlanteOrange_', 'assets/SpriteDialoguePlanteOrange_.png');
                 this.load.image('Tuto', 'assets/Tuto.png');
                 this.load.image('Fin', 'assets/Fin.png');
+                this.load.image('grainFilm', 'assets/GrainFilm.png');
+                this.load.image('ronces', 'assets/ronces.png');
+                this.load.spritesheet("AnimationMonstre", "assets/AnimationMonstre.png", // Charger le héros
+                    { frameWidth: 1070, frameHeight: 807 });
+                this.load.spritesheet("AnimationMechant", "assets/AnimationMechant.png", // Charger le héros
+                    { frameWidth: 64, frameHeight: 90 });
+
 
                 this.load.image('sol', 'assets/test.png');
                 this.load.image('spritesheet64x64', 'assets/spritesheet64x64.png');
@@ -94,6 +104,8 @@
                 this.doublejump = false
                 this.collectplante = false
                 this.collectplantejump = false
+                this.inMort = false
+
 
                 ///////////////////IMPORTATION MAP////////////////////
 
@@ -153,10 +165,13 @@
                 );
 
                 this.buche = this.carteNiveau.getObjectLayer("buche");
+                this.monster = this.carteNiveau.getObjectLayer("monster");
+                this.ronces = this.carteNiveau.getObjectLayer("ronces");
+                this.checkpoint = this.carteNiveau.getObjectLayer("checkpoints");
                 this.cristaux = this.carteNiveau.getObjectLayer("cristaux");
                 this.saut = this.carteNiveau.getObjectLayer("saut");
                 this.charge = this.carteNiveau.getObjectLayer("charge");
-                this.ennemis = this.carteNiveau.getObjectLayer("ennemis");
+
 
 
 
@@ -165,14 +180,14 @@
                 ////////////////BOO////////////////
 
 
-                this.player = this.physics.add.sprite(0, 0, 'créature');
+                this.player = this.physics.add.sprite(200, 400, 'créature');
                 this.player.scale = 0.12
                 this.player.setCollideWorldBounds(true);
                 this.physics.add.collider(this.player);
                 this.player.body.setSize(800, 800)
                 this.player.body.setOffset(100, 22)
                 this.player.setDepth(1);
-                this.player.setMaxVelocity(250, 900);
+                this.player.setMaxVelocity(10000, 900);
 
                 this.player.speed = 250;
                 this.dir = "left";
@@ -180,16 +195,28 @@
                 this.isFoncing = false;
                 this.valueCharge = 0;
                 this.foncingDuration = 3000;
+                this.checkpointX = this.player.x;
+                this.checkpointY = this.player.y;
+                this.isInBuche = false;
+                this.isDead = false;
+                this.hp = 10;
 
 
                 ////////////////MECHANT////////////////
 
-                this.monster = this.physics.add.sprite(764, 282);
-                this.monster.scale = 0.2
-                this.monster.setCollideWorldBounds(true);
-                this.monster.body.setSize(400, 800)
-                this.monster.body.setOffset(100, 22)
-                this.physics.add.collider(this.monster, this.sol);
+                this.monsterS = this.physics.add.group({});
+                this.monster.objects.forEach(object => {
+                    const monster = this.monsterS.create(object.x, object.y, "méchant").setPushable(false).setCollideWorldBounds(true).setScale(1.2);
+                    monster.minx = object.properties[1].value;
+                    monster.maxx = object.properties[0].value;
+                    monster.setVelocityX(200);
+                    
+                })
+
+
+                this.physics.add.collider(this.monsterS, this.sol);
+                this.physics.add.collider(this.monsterS, this.plateformes);
+                this.physics.add.overlap(this.player, this.monsterS, this.checkMort, null, this);
 
 
                 this.SpriteDialoguePlanteVerte = this.physics.add.sprite(1664, 318, 'SpriteDialoguePlanteVerte_').setScale(0.2)
@@ -213,6 +240,43 @@
 
 
 
+                this.anims.create({
+                    key: 'turn',
+                    frames: [{ key: 'AnimationMonstre', frame: 0 }],
+                    frameRate: 20
+                });
+                this.anims.create({
+                    key: 'right',
+                    frames: this.anims.generateFrameNumbers('AnimationMonstre', { start: 1, end: 3 }),
+                    frameRate: 5,
+                    repeat: -1
+                });
+
+
+
+                this.anims.create({
+                    key: 'rightM',
+                    frames: this.anims.generateFrameNumbers('AnimationMechant', { start: 0, end: 6 }),
+                    frameRate: 10,
+                    repeat: -1
+                });
+                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -222,6 +286,7 @@
                 this.assets.setDepth(2);
                 this.assetsSol.setDepth(2);
                 this.sol.setDepth(2);
+                this.plateformes.setDepth(2)
 
 
 
@@ -249,13 +314,32 @@
 
                 this.buches = this.physics.add.group({});
                 this.buche.objects.forEach(object => {
-                    const buche = this.buches.create(object.x, object.y, "buche").setPushable(false).scale = 2.5;
-
+                    const buche = this.buches.create(object.x, object.y, "buche").setPushable(false).setOrigin(0).setDepth(2).setScale(2.5);
+                    buche.used = false;
                 })
                 this.physics.add.collider(this.buches, this.sol);
                 this.bucheCollider = this.physics.add.collider(this.player, this.buches);
+                this.physics.add.overlap(this.player, this.buches, this.inBuche, null, this);
 
 
+
+                this.roncesS = this.physics.add.group({ allowGravity: false });
+                this.ronces.objects.forEach(object => {
+                    const ronces = this.roncesS.create(object.x, object.y, "ronces").setPushable(false);
+                })
+                this.physics.add.collider(this.roncesS, this.sol);
+                this.physics.add.overlap(this.player, this.roncesS, this.piqueMort, null, this);
+
+
+                ///////////////////CHECKPOINTS////////////////////
+                this.checkpointS = this.physics.add.group({ allowGravity: false });
+                this.checkpoint.objects.forEach(object => {
+                    const checkpoint = this.checkpointS.create(object.x, object.y, "none").setPushable(false);
+                    checkpoint.setAlpha(0);
+                    checkpoint.setSize(5, 300)
+                })
+
+                this.physics.add.overlap(this.player, this.checkpointS, this.savePosition, null, this);
 
 
 
@@ -292,7 +376,7 @@
 
                 })
                 this.physics.add.collider(this.cristauxS, this.sol);
-                this.cristauxCollider = this.physics.add.collider(this.player, this.cristauxS);
+                this.cristauxCollider = this.physics.add.collider(this.player, this.cristauxS, this.destroyCristal, null, this);
 
 
             }
@@ -301,7 +385,70 @@
                 this.plantejump.disableBody(true, true)
             }
 
+            destroyCristal(player, cristal) {
+                if (this.isFoncing) {
+                    cristal.destroy();
+                }
+            }
+
+            inBuche(player, buche) {
+
+                buche.setAlpha(0.5);
+                buche.used = true;
+
+
+
+                setTimeout(() => {
+                    buche.setAlpha(1);
+                    buche.used = false;
+                }, 100);
+            }
+
+            savePosition(player, checkpoint) {
+                this.checkpointX = player.x;
+                this.checkpointY = player.y;
+            }
+
+            checkMort(player, monster) {
+                // console.log(this.isInBuche); 
+                if (this.isInBuche == false && this.isDead == false) {
+                    this.isDead = true;
+                    this.inMort = true;
+                    this.player.setVelocityX(0)
+                    player.anims.play('turn', true)
+                    this.restart();
+                }
+            }
+
+            piqueMort(player, ronces) {
+                if(this.isDead == false){
+                    this.isDead = true;
+                    this.inMort = true;
+                    this.player.setVelocityX(0)
+                    player.anims.play('turn', true)
+                    this.restart();
+                } 
+                }
+
+            restart() {
+                this.hp -= 1;
+                setTimeout(() => {
+                    if (this.hp > 0) {
+                        this.player.x = this.checkpointX;
+                        this.player.y = this.checkpointY;
+                        this.isDead = false;
+                        this.inMort = false;
+                    } else {
+                        this.scene.start("Defaite");
+                    }
+
+                }, 500);
+            }
+
+
+
             update(time, delta) {
+                
 
 
                 if (this.player.x >= 1664 && this.player.x <= 1800) {
@@ -344,22 +491,51 @@
 
                 ////////////////MONSTER////////////////
 
-                if (this.monster.x >= 1000) {
-                    this.monster.setVelocityX(-1000)
-                    this.monster.anims.play("monster left", true)
-                }
-                else if (this.monster.x <= 450) {
-                    this.monster.setVelocityX(1000)
-                    this.monster.anims.play("monster right", true)
-                }
+                // if (this.monster.x >= 1000) {
+                //     this.monster.setVelocityX(-1000)
+                //     this.monster.anims.play("monster left", true)
+                // }
+                // else if (this.monster.x <= 450) {
+                //     this.monster.setVelocityX(1000)
+                //     this.monster.anims.play("monster right", true)
+                // }
+
+
+                this.monsterS.children.each(function (monster) {
+                    if (monster.x >= monster.maxx) {
+                        monster.setVelocityX(-200);
+                        monster.setFlipX(true);
+                        monster.anims.play('rightM', true);//et animation => droite
+                    } else if (monster.x <= monster.minx) {
+                        monster.setVelocityX(200);
+                        monster.setFlipX(false);
+                        monster.anims.play('rightM', true);//et animation => droite
+                    }
+                })
+
+                this.buches.children.each(function (buche) {
+                    if (buche.used) {
+                        if (this.player.x > buche.x && this.player.x < buche.x + buche.width * 2.5) {
+
+                            if (this.player.y > buche.y && this.player.y < buche.y + buche.height * 2.5) {
+                                this.isInBuche = true;
+                            } else {
+                                this.isInBuche = false;
+                            }
+                        } else {
+                            this.isInBuche = false;
+                        }
+                    }
+
+                }, this)
 
 
 
                 if (this.collectplantejump == true) {
-                    this.doublejump = true
+                    this.doublejump = true;
                 }
                 if (this.collectplante == true) {
-                    this.dash = true
+                    this.dash = true;
                 }
                 // console.log(this.accroupi)
 
@@ -372,28 +548,33 @@
                 var dashButton = this.cursors.shift.isDown
                 var dashButtonUp = this.cursors.shift.isUp
 
+                console.log(this.isDead)
+
                 if (this.isFoncing == false) {
-                    if (this.cursors.left.isDown) {//si la touche gauche est appuyée
+                    if(this.inMort == false){
+                        if (this.cursors.left.isDown) {//si la touche gauche est appuyée
                         this.dir = "left";
                         this.player.setFlipX(true);
                         this.player.setVelocityX(- this.player.speed);//alors vitesse négative en X
-                        //this.player.anims.play('left', true);//et animation => gauche
+                        this.player.anims.play('right', true);//et animation => gauche
                     }
                     else if (this.cursors.right.isDown) {//si la touche droite est appuyée
                         this.dir = "right";
                         this.player.setFlipX(false);
                         this.player.setVelocityX(this.player.speed);//alors vitesse positive en X
-                        // this.player.anims.play('right', true);//et animation => droite
+                        this.player.anims.play('right', true);//et animation => droite
                     }
                     else { // sinon
                         this.player.setVelocityX(0); //vitesse nulle
-                        //this.player.anims.play('turn');//animation fait face caméra
+                        this.player.anims.play('turn');//animation fait face caméra
                     }
 
                     if (this.cursors.up.isDown && this.player.body.onFloor()) {//si la touche gauche est appuyée
                         this.player.setVelocityY(-400);//alors vitesse négative en X
                         //this.player.anims.play('up', true);//et animation => gauche
                     }
+                    }
+                    
                 }
 
 
@@ -409,20 +590,13 @@
                     }
 
                     this.isCharging = true;
-                    if (this.isCharging == true) {
-                        this.cristauxCollider.active = false;
-                        this.cristaux.NotVisible = true
 
-
-                    } else {
-                        this.cristauxCollider.active = true;
-                    }
 
 
 
                 } else {
                     //this.cameras.main.zoom = 2.4; 
-                    this.player.speed = 500;
+                    this.player.speed = 250;
                     this.valueCharge = 0;
                 }
 
@@ -430,20 +604,15 @@
                 this.cursors.shift.on('up', function (event) {
                     if (this.isCharging) {
                         if (this.dir == "left") {
-                            this.player.setVelocityX(-(this.valueCharge * 2 + this.player.speed));
+                            this.player.setVelocityX(-(this.valueCharge * 4 + this.player.speed));
                         } else {
-                            this.player.setVelocityX((this.valueCharge * 2 + this.player.speed));
+                            this.player.setVelocityX((this.valueCharge * 4 + this.player.speed));
                         }
                         this.isFoncing = true;
                         this.isCharging = false;
 
                         if (this.isFoncing == true) {
                             this.accroupi = false;
-                            this.cristauxCollider.active = false;
-
-
-                        } else {
-                            this.cristauxCollider.active = true;
                         }
 
 
@@ -491,8 +660,8 @@
 
                 if (this.accroupi == true) {
                     this.bucheCollider.active = false;
-                    this.player.body.setSize(800, 500);
-                    this.player.body.setOffset(100, 310);
+                    this.player.body.setSize(600, 500);
+                    this.player.body.setOffset(300, 310);
                     // this.collider.setCollisionByProperty({estSolide: true}, false)
 
                 } else {
@@ -525,11 +694,41 @@
 
             }
 
-            mort() {
 
-            }
         }
 
+
+        class Defaite extends Phaser.Scene {
+            constructor() {
+                super("Defaite")
+            }
+
+            preload() {
+
+                this.load.image("Lose_Screen", "assets/ecran-defaite.png"); // Charger l'image d'acceuil
+
+            }
+
+            create() {
+
+
+                this.imageFin = this.physics.add.staticGroup();
+                this.imageFin.create(955, 570, 'Lose_Screen').setScale(0.8); // Emplacement de l'image d'acceuil
+
+                this.cursors = this.input.keyboard.createCursorKeys();
+            }
+
+            update() {
+
+
+                if (this.cursors.space.isDown) { // En appyant sur la touche "espace"
+                    this.scene.start("MAP"); // On passe de la scene de l'image d'acceuil à la scene "Plaine"
+                }
+
+
+            }
+
+        }
 
 
 
@@ -550,7 +749,7 @@
                 forceSetTimeOut: true
             },
             input: { gamepad: true },
-            scene: [Acceuil, MAP]
+            scene: [Acceuil, MAP, Defaite]
         };
         new Phaser.Game(config);
 
